@@ -1,2 +1,2 @@
-# Boltzmann MaGenes
-Restricted Boltzmann Machines for gene regulatory networks and protein signalling
+# BoPS: Boltzmann machines for Protein Signalling
+Restricted Boltzmann Machines for protein signalling networks
