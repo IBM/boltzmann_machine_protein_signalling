@@ -65,8 +65,8 @@ class RestrictedBoltzmannMachine:
 
     def mean_negative_log_likelihood(self, v: np.ndarray):
         """Compute the mean negative log likelihood of a batch of visible states under the model.
-        The log likelihood of a data point is the negative conditional free energy"""
-        return np.mean(- self.conditional_free_energy(v))
+        The log likelihood of a data point is the conditional free energy"""
+        return np.mean(self.conditional_free_energy(v))
 
     def sample_binary(self, probas: np.ndarray, seed: int = None):
         """Sample independent binary RV from an array of probability for each to be 1"""
