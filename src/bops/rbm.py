@@ -122,8 +122,6 @@ class RestrictedBoltzmannMachine:
         if return_hidden:
             sample_h = np.empty((n_steps * batch_size, self.n_hidden))
             sample_h.fill(np.nan)
-        import ipdb
-        ipdb.set_trace()
         for i in range(n_burn):
             h = self.sample_h(v, seed)
             v = self.sample_v(h, seed)
@@ -157,8 +155,6 @@ class RestrictedBoltzmannMachine:
         v, batch_size = self.sample_initial_batch(batch_size=batch_size, v_start=v_start, seed=seed)
         sample_v = np.empty((n_steps * batch_size, self.n_visible))
         sample_v.fill(np.nan)
-        import ipdb
-        ipdb.set_trace()
         for i in range(n_burn):
             v = self.metropolis_step(v, seed)
 
