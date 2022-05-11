@@ -38,11 +38,16 @@ class RestrictedBoltzmannMachine:
     def __init__(self, n_visible, n_hidden, seed=123, optimizer="Adam", optimzer_params=tuple()):
         self.n_visible = n_visible
         self.n_hidden = n_hidden
-        self.w = np.ones((n_visible, n_hidden))
+        self.w = np.zeros((n_visible, n_hidden))
         self.a = np.zeros((n_visible,))
         self.b = np.zeros((n_hidden,))
         self.rng = np.random.default_rng(seed=seed)
         self.optim = self.get_optimizer(optimizer=optimizer, optimizer_params=optimzer_params)
+
+    def xavier_initialization(self, seed=None):
+        self.w = self.get_rng(seed).normal(loc=0, scale=4 / np.sqrt(self.n_hidden * self.n_visible))
+        self.a = self.get_rng(seed).normal(loc=0, scale=4 / np.sqrt(self.n_visible))
+        self.b = self.get_rng(seed).normal(loc=0, scale=4 / np.sqrt(self.n_hidden))
 
     @staticmethod
     def get_optimizer(optimizer="Adam", optimizer_params=tuple()) -> optimizers.OptimizerBase:
@@ -117,6 +122,8 @@ class RestrictedBoltzmannMachine:
         if return_hidden:
             sample_h = np.empty((n_steps * batch_size, self.n_hidden))
             sample_h.fill(np.nan)
+        import ipdb
+        ipdb.set_trace()
         for i in range(n_burn):
             h = self.sample_h(v, seed)
             v = self.sample_v(h, seed)
@@ -141,6 +148,7 @@ class RestrictedBoltzmannMachine:
 
         acceptance_probability = p_v_new / p_v
         accept = self.sample_binary(acceptance_probability, seed=seed)
+        accept = accept[:, np.newaxis]
         return accept * v_new + (1 - accept) * v
 
     def sample_metropolis(self, batch_size=10, n_steps=100, n_burn=10, v_start=None, seed=None):
@@ -149,6 +157,8 @@ class RestrictedBoltzmannMachine:
         v, batch_size = self.sample_initial_batch(batch_size=batch_size, v_start=v_start, seed=seed)
         sample_v = np.empty((n_steps * batch_size, self.n_visible))
         sample_v.fill(np.nan)
+        import ipdb
+        ipdb.set_trace()
         for i in range(n_burn):
             v = self.metropolis_step(v, seed)
 
