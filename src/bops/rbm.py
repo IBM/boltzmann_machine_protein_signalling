@@ -71,7 +71,7 @@ class RestrictedBoltzmannMachine:
     def sample_binary(self, probas: np.ndarray, seed: int = None):
         """Sample independent binary RV from an array of probability for each to be 1"""
         draws = self.get_rng(seed=seed).uniform(0, 1, probas.shape)
-        return (draws >= probas).astype(float)
+        return (draws <= probas).astype(float)
 
     def sample_h(self, v, seed=None):
         """Sample the hidden variables given the visible ones"""
