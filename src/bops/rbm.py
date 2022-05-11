@@ -45,9 +45,9 @@ class RestrictedBoltzmannMachine:
         self.optim = self.get_optimizer(optimizer=optimizer, optimizer_params=optimzer_params)
 
     def xavier_initialization(self, seed=None):
-        self.w = self.get_rng(seed).normal(loc=0, scale=4 / np.sqrt(self.n_hidden * self.n_visible))
-        self.a = self.get_rng(seed).normal(loc=0, scale=4 / np.sqrt(self.n_visible))
-        self.b = self.get_rng(seed).normal(loc=0, scale=4 / np.sqrt(self.n_hidden))
+        self.w = self.get_rng(seed).normal(loc=0, scale=4 / np.sqrt(self.n_hidden * self.n_visible), size=self.w.shape)
+        self.a = self.get_rng(seed).normal(loc=0, scale=4 / np.sqrt(self.n_visible), size=self.a.shape)
+        self.b = self.get_rng(seed).normal(loc=0, scale=4 / np.sqrt(self.n_hidden), size=self.b.shape)
 
     @staticmethod
     def get_optimizer(optimizer="Adam", optimizer_params=tuple()) -> optimizers.OptimizerBase:
