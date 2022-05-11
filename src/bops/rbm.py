@@ -8,7 +8,8 @@ def batched_array(array, batch_size):
     for first in np.arange(0, len(array), batch_size):
         yield array[first:first + batch_size]
 
-def batched_outer(a,b):
+
+def batched_outer(a, b):
     """Compute the outer product of two batches of vectors
     i.e. a_ni, b_nj -> a_ni * b_nj
 
@@ -24,7 +25,7 @@ def batched_outer(a,b):
     np.ndarray
         shape NxAxB
     """
-    return np.einsum("ni,nj->nij")
+    return np.einsum("ni,nj->nij", a, b)
 
 
 class RestrictedBoltzmannMachine:
@@ -85,6 +86,77 @@ class RestrictedBoltzmannMachine:
         """Compute the mean negative log likelihood of a batch of visible states under the model.
         The log likelihood of a data point is the conditional free energy"""
         return np.mean(self.conditional_free_energy(v))
+
+    def boltzmann_factor(self, v: np.ndarray):
+        """Compute the Boltzmann factor (un-normalized probability) for a batch of visible states.
+        The Boltzmann factor is exp(-F(v)) where F is the free energy of the visible state v
+        """
+        return np.exp(-self.conditional_free_energy(v))
+
+    def sample_initial_batch(self, batch_size=10, v_start=None, seed=None):
+        """Provide an appropriate batch of vectors"""
+        if v_start is None:
+            v_start = self.get_rng(seed=seed).integers(size=(batch_size, self.n_visible), low=0, high=1, endpoint=True)
+        else:
+            batch_size = v_start.shape[0]
+
+        return v_start, batch_size
+
+    def sample_gibbs(self, batch_size=10, n_steps=100, n_burn=10, return_hidden=False, v_start=None, seed=None):
+        """Sample using the Gibbs algorithm: start from a random configuration of visible variables and alternatively
+        sample h and v from each other.
+
+        All operations are performed batch-wise and the total number of samples will be
+        (batch_size * n_steps) to allow for vectorization
+        """
+        v, batch_size = self.sample_initial_batch(batch_size=batch_size, v_start=v_start, seed=seed)
+
+        # Creating arrays for the results. They are filled with nans to easily diagnose issues
+        sample_v = np.empty((n_steps * batch_size, self.n_visible))
+        sample_v.fill(np.nan)
+        if return_hidden:
+            sample_h = np.empty((n_steps * batch_size, self.n_hidden))
+            sample_h.fill(np.nan)
+        for i in range(n_burn):
+            h = self.sample_h(v, seed)
+            v = self.sample_v(h, seed)
+
+        for i in range(n_steps):
+            h = self.sample_h(v, seed)
+            v = self.sample_v(h, seed)
+            sample_v[i * batch_size:(i + 1) * batch_size] = v.copy()
+            if return_hidden:
+                sample_h[i * batch_size:(i + 1) * batch_size] = h.copy()
+
+        if return_hidden:
+            return sample_v, sample_h
+        else:
+            return sample_v
+
+    def metropolis_step(self, v, seed=None):
+        v_new = self.get_rng(seed).integers(0, 1, size=v.shape, endpoint=True)
+        # Get un-normalized probabilities
+        p_v = self.boltzmann_factor(v)
+        p_v_new = self.boltzmann_factor(v_new)
+
+        acceptance_probability = p_v_new / p_v
+        accept = self.sample_binary(acceptance_probability, seed=seed)
+        return accept * v_new + (1 - accept) * v
+
+    def sample_metropolis(self, batch_size=10, n_steps=100, n_burn=10, v_start=None, seed=None):
+        """Sample using the Metropolis-Hastings algorithm. This does not require sampling the hidden variables
+        as we can compute the probability of a visible state using the free energy formula"""
+        v, batch_size = self.sample_initial_batch(batch_size=batch_size, v_start=v_start, seed=seed)
+        sample_v = np.empty((n_steps * batch_size, self.n_visible))
+        sample_v.fill(np.nan)
+        for i in range(n_burn):
+            v = self.metropolis_step(v, seed)
+
+        for i in range(n_steps):
+            v = self.metropolis_step(v, seed)
+            sample_v[i * batch_size:(i + 1) * batch_size] = v.copy()
+
+        return sample_v
 
     def sample_binary(self, probas: np.ndarray, seed: int = None):
         """Sample independent binary RV from an array of probability for each to be 1"""
