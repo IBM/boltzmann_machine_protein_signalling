@@ -8,6 +8,24 @@ def batched_array(array, batch_size):
     for first in np.arange(0, len(array), batch_size):
         yield array[first:first + batch_size]
 
+def batched_outer(a,b):
+    """Compute the outer product of two batches of vectors
+    i.e. a_ni, b_nj -> a_ni * b_nj
+
+    Parameters
+    ----------
+    a: np.ndarray
+        shape NxA
+    b: np.ndarray
+        shape NxB
+
+    Returns
+    -------
+    np.ndarray
+        shape NxAxB
+    """
+    return np.einsum("ni,nj->nij")
+
 
 class RestrictedBoltzmannMachine:
     """Energy based model with a bipartite interaction graph over binary visible (v) and hidden (h) nodes.
@@ -88,7 +106,7 @@ class RestrictedBoltzmannMachine:
         h = self.sample_h(v, seed)
         v_prime = self.sample_v(h, seed)
 
-        return np.sum(np.outer(v, h) - np.outer(v_prime, h), axis=0)
+        return np.sum(batched_outer(v, h) - batched_outer(v_prime, h), axis=0)
 
     def compute_gradient_a(self, v, seed=None):
         """Compute the gradient of the visible linear term using contrastive divergence"""
