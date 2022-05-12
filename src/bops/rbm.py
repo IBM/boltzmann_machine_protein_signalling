@@ -2,6 +2,7 @@
 import numpy as np
 from scipy.special import expit as sigmoid
 from numpy_ml.neural_nets import optimizers
+from tqdm.autonotebook import tqdm
 
 
 def batched_array(array, batch_size):
@@ -96,11 +97,6 @@ class RestrictedBoltzmannMachine:
         return - np.tensordot(v, self.a, [[-1], [0]]) \
                - np.sum(np.log(1 + np.exp(np.tensordot(v, self.w, axes=[[-1], [0]]) + self.b)), axis=-1)
 
-    def mean_negative_log_likelihood(self, v: np.ndarray):
-        """Compute the mean negative log likelihood of a batch of visible states under the model.
-        The log likelihood of a data point is the conditional free energy"""
-        return np.mean(self.conditional_free_energy(v))
-
     def boltzmann_factor(self, v: np.ndarray):
         """Compute the Boltzmann factor (un-normalized probability) for a batch of visible states.
         The Boltzmann factor is exp(-F(v)) where F is the free energy of the visible state v
@@ -193,14 +189,14 @@ class RestrictedBoltzmannMachine:
         h = self.sample_h(v, seed)
         v_prime = self.sample_v(h, seed)
 
-        return np.sum(batched_outer(v, h) - batched_outer(v_prime, h), axis=0)
+        return np.sum(batched_outer(v_prime, h) - batched_outer(v, h), axis=0)
 
     def compute_gradient_a(self, v, seed=None):
         """Compute the gradient of the visible linear term using contrastive divergence"""
         h = self.sample_h(v, seed)
         v_prime = self.sample_v(h, seed=seed)
 
-        return np.sum(v - v_prime, axis=0)
+        return np.sum(v_prime - v, axis=0)
 
     def compute_gradient_b(self, v, seed=None):
         """Compute the gradient of the hidden linear term using contrastive divergence"""
@@ -210,7 +206,7 @@ class RestrictedBoltzmannMachine:
         v_prime = self.sample_v(h, seed)
         prob_h_model = self.prob_h(v_prime)
 
-        return np.sum(prob_h_data - prob_h_model, axis=0)
+        return np.sum(prob_h_model - prob_h_data, axis=0)
 
     def gradient_step(self, v, seed=None):
         """Update the parameters using a minibatch of visible variables"""
@@ -229,5 +225,5 @@ class RestrictedBoltzmannMachine:
             self.gradient_step(v_batch)
 
     def train(self, v, batch_size, n_epochs):
-        for e in range(n_epochs):
+        for e in tqdm(range(n_epochs)):
             self.train_epoch(v, batch_size)
