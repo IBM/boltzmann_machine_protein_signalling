@@ -44,10 +44,19 @@ class RestrictedBoltzmannMachine:
         self.rng = np.random.default_rng(seed=seed)
         self.optim = self.get_optimizer(optimizer=optimizer, optimizer_params=optimzer_params)
 
-    def xavier_initialization(self, seed=None):
+    def xavier_initialize_w(self, seed=None):
         self.w = self.get_rng(seed).normal(loc=0, scale=4 / np.sqrt(self.n_hidden * self.n_visible), size=self.w.shape)
+
+    def xavier_initialize_a(self, seed=None):
         self.a = self.get_rng(seed).normal(loc=0, scale=4 / np.sqrt(self.n_visible), size=self.a.shape)
+
+    def xavier_initialize_b(self, seed=None):
         self.b = self.get_rng(seed).normal(loc=0, scale=4 / np.sqrt(self.n_hidden), size=self.b.shape)
+
+    def xavier_initialization(self, seed=None):
+        self.xavier_initialize_w(seed)
+        self.xavier_initialize_a(seed)
+        self.xavier_initialize_b(seed)
 
     @staticmethod
     def get_optimizer(optimizer="Adam", optimizer_params=tuple()) -> optimizers.OptimizerBase:
@@ -59,9 +68,9 @@ class RestrictedBoltzmannMachine:
     def get_rng(self, seed=None):
         """Either use the rng setup at instantiation or obtain a new one with a fixed seed"""
         if seed is None:
-            return np.random.default_rng(seed)
-        else:
             return self.rng
+        else:
+            return np.random.default_rng(seed)
 
     def reset_rng(self, seed):
         """Reset the default rng with a new seed"""
@@ -215,7 +224,7 @@ class RestrictedBoltzmannMachine:
 
     def train_epoch(self, v, batch_size, seed=None):
         """Train by going once over a batch of visible variables, dividing it into minibatches"""
-        v = self.get_rng(seed).shuffle(v, axis=0)
+        self.get_rng(seed).shuffle(v, axis=0)
         for v_batch in batched_array(v, batch_size=batch_size):
             self.gradient_step(v_batch)
 
