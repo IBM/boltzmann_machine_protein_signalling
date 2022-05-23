@@ -7,7 +7,7 @@ from tqdm.autonotebook import tqdm
 
 def batched_array(array, batch_size):
     for first in np.arange(0, len(array), batch_size):
-        yield array[first:first + batch_size]
+        yield array[first : first + batch_size]
 
 
 def batched_outer(a, b):
@@ -36,23 +36,33 @@ class RestrictedBoltzmannMachine:
     where a,b and w are trainable parameters.
     """
 
-    def __init__(self, n_visible, n_hidden, seed=123, optimizer="Adam", optimzer_params=tuple()):
+    def __init__(
+        self, n_visible, n_hidden, seed=123, optimizer="Adam", optimzer_params=tuple()
+    ):
         self.n_visible = n_visible
         self.n_hidden = n_hidden
         self.w = np.zeros((n_visible, n_hidden))
         self.a = np.zeros((n_visible,))
         self.b = np.zeros((n_hidden,))
         self.rng = np.random.default_rng(seed=seed)
-        self.optim = self.get_optimizer(optimizer=optimizer, optimizer_params=optimzer_params)
+        self.optim = self.get_optimizer(
+            optimizer=optimizer, optimizer_params=optimzer_params
+        )
 
     def xavier_initialize_w(self, seed=None):
-        self.w = self.get_rng(seed).normal(loc=0, scale=4 / np.sqrt(self.n_hidden * self.n_visible), size=self.w.shape)
+        self.w = self.get_rng(seed).normal(
+            loc=0, scale=4 / np.sqrt(self.n_hidden * self.n_visible), size=self.w.shape
+        )
 
     def xavier_initialize_a(self, seed=None):
-        self.a = self.get_rng(seed).normal(loc=0, scale=4 / np.sqrt(self.n_visible), size=self.a.shape)
+        self.a = self.get_rng(seed).normal(
+            loc=0, scale=4 / np.sqrt(self.n_visible), size=self.a.shape
+        )
 
     def xavier_initialize_b(self, seed=None):
-        self.b = self.get_rng(seed).normal(loc=0, scale=4 / np.sqrt(self.n_hidden), size=self.b.shape)
+        self.b = self.get_rng(seed).normal(
+            loc=0, scale=4 / np.sqrt(self.n_hidden), size=self.b.shape
+        )
 
     def xavier_initialization(self, seed=None):
         self.xavier_initialize_w(seed)
@@ -60,7 +70,9 @@ class RestrictedBoltzmannMachine:
         self.xavier_initialize_b(seed)
 
     @staticmethod
-    def get_optimizer(optimizer="Adam", optimizer_params=tuple()) -> optimizers.OptimizerBase:
+    def get_optimizer(
+        optimizer="Adam", optimizer_params=tuple()
+    ) -> optimizers.OptimizerBase:
         """Instantiate an optimizer from numpy_ml"""
         optim_cls = getattr(optimizers, optimizer)
         optimizer_params = dict(optimizer_params)
@@ -80,22 +92,30 @@ class RestrictedBoltzmannMachine:
     def prob_h(self, v: np.ndarray):
         """Compute the probability of all hidden nodes being equal to 1 given all the visible nodes"""
         return sigmoid(
-            np.tensordot(v, self.w, axes=[[-1], [0]])  # allows both batched an non-batched entries.
-            + self.b)
+            np.tensordot(
+                v, self.w, axes=[[-1], [0]]
+            )  # allows both batched an non-batched entries.
+            + self.b
+        )
 
     def prob_v(self, h: np.ndarray):
         """Compute the probability of all visible nodes being equal to 1 given all the hidden nodes"""
         return sigmoid(
-            np.tensordot(h, self.w, axes=[[-1], [1]])  # allows both batched an non-batched entries.
-            + self.a)
+            np.tensordot(
+                h, self.w, axes=[[-1], [1]]
+            )  # allows both batched an non-batched entries.
+            + self.a
+        )
 
     def conditional_free_energy(self, v: np.ndarray):
         """Compute the free energy of a batch of states with fixed visible nodes"""
         # See Hinton's A Practical Guide to Training Restricted Boltzmann Machines
         # version 1, page 17, equation 25
         # F = - ai vi - sum_j log(1+exp(hmean_j)) where hmean_j = vi wij + bj
-        return - np.tensordot(v, self.a, [[-1], [0]]) \
-               - np.sum(np.log(1 + np.exp(np.tensordot(v, self.w, axes=[[-1], [0]]) + self.b)), axis=-1)
+        return -np.tensordot(v, self.a, [[-1], [0]]) - np.sum(
+            np.log(1 + np.exp(np.tensordot(v, self.w, axes=[[-1], [0]]) + self.b)),
+            axis=-1,
+        )
 
     def boltzmann_factor(self, v: np.ndarray):
         """Compute the Boltzmann factor (un-normalized probability) for a batch of visible states.
@@ -106,20 +126,52 @@ class RestrictedBoltzmannMachine:
     def sample_initial_batch(self, batch_size=10, v_start=None, seed=None):
         """Provide an appropriate batch of vectors"""
         if v_start is None:
-            v_start = self.get_rng(seed=seed).integers(size=(batch_size, self.n_visible), low=0, high=1, endpoint=True)
+            v_start = self.get_rng(seed=seed).integers(
+                size=(batch_size, self.n_visible), low=0, high=1, endpoint=True
+            )
         else:
             batch_size = v_start.shape[0]
 
         return v_start, batch_size
 
-    def sample_gibbs(self, batch_size=10, n_steps=100, n_burn=10, return_hidden=False, v_start=None, seed=None):
+    def step_gibbs(self, v, mask_updates=None, seed=None):
+        """Perform one step of Gibbs sampling
+
+        Parameters
+        ----------
+        v: np.ndarray
+        current state of the visible nodes
+        seed: int
+        random seed or None (use the model's default RNG)
+        mask_updates: np.ndarray
+        binary array. Ones are the values that are NOT updated
+        """
+        h = self.sample_h(v, seed)
+        v_new = self.sample_v(h, seed)
+        if mask_updates is not None:
+            assert mask_updates.shape == v.shape[-1:]
+            v = mask_updates * v + (1 - mask_updates) * v_new
+        return v, h
+
+    def sample_gibbs(
+        self,
+        batch_size=10,
+        n_steps=100,
+        n_burn=10,
+        return_hidden=False,
+        v_start=None,
+        mask_updates=None,
+        seed=None,
+    ):
         """Sample using the Gibbs algorithm: start from a random configuration of visible variables and alternatively
         sample h and v from each other.
 
         All operations are performed batch-wise and the total number of samples will be
         (batch_size * n_steps) to allow for vectorization
         """
-        v, batch_size = self.sample_initial_batch(batch_size=batch_size, v_start=v_start, seed=seed)
+        v, batch_size = self.sample_initial_batch(
+            batch_size=batch_size, v_start=v_start, seed=seed
+        )
 
         # Creating arrays for the results. They are filled with nans to easily diagnose issues
         sample_v = np.empty((n_steps * batch_size, self.n_visible))
@@ -128,22 +180,19 @@ class RestrictedBoltzmannMachine:
             sample_h = np.empty((n_steps * batch_size, self.n_hidden))
             sample_h.fill(np.nan)
         for i in range(n_burn):
-            h = self.sample_h(v, seed)
-            v = self.sample_v(h, seed)
-
+            v, h = self.step_gibbs(v, seed=seed, mask_updates=mask_updates)
         for i in range(n_steps):
-            h = self.sample_h(v, seed)
-            v = self.sample_v(h, seed)
-            sample_v[i * batch_size:(i + 1) * batch_size] = v.copy()
+            v, h = self.step_gibbs(v, seed=seed, mask_updates=mask_updates)
+            sample_v[i * batch_size : (i + 1) * batch_size] = v.copy()
             if return_hidden:
-                sample_h[i * batch_size:(i + 1) * batch_size] = h.copy()
+                sample_h[i * batch_size : (i + 1) * batch_size] = h.copy()
 
         if return_hidden:
             return sample_v, sample_h
         else:
             return sample_v
 
-    def metropolis_step(self, v, seed=None):
+    def metropolis_step(self, v, seed=None, mask_updates=None):
         v_new = self.get_rng(seed).integers(0, 1, size=v.shape, endpoint=True)
         # Get un-normalized probabilities
         p_v = self.boltzmann_factor(v)
@@ -151,21 +200,28 @@ class RestrictedBoltzmannMachine:
 
         acceptance_probability = p_v_new / p_v
         accept = self.sample_binary(acceptance_probability, seed=seed)
+        if mask_updates is not None:
+            # Force reject of masked entries
+            accept = accept * (1 - mask_updates)
         accept = accept[:, np.newaxis]
         return accept * v_new + (1 - accept) * v
 
-    def sample_metropolis(self, batch_size=10, n_steps=100, n_burn=10, v_start=None, seed=None):
+    def sample_metropolis(
+        self, batch_size=10, n_steps=100, n_burn=10, v_start=None, mask_updates=None, seed=None
+    ):
         """Sample using the Metropolis-Hastings algorithm. This does not require sampling the hidden variables
         as we can compute the probability of a visible state using the free energy formula"""
-        v, batch_size = self.sample_initial_batch(batch_size=batch_size, v_start=v_start, seed=seed)
+        v, batch_size = self.sample_initial_batch(
+            batch_size=batch_size, v_start=v_start, seed=seed
+        )
         sample_v = np.empty((n_steps * batch_size, self.n_visible))
         sample_v.fill(np.nan)
         for i in range(n_burn):
-            v = self.metropolis_step(v, seed)
+            v = self.metropolis_step(v, mask_updates=mask_updates, seed=seed)
 
         for i in range(n_steps):
-            v = self.metropolis_step(v, seed)
-            sample_v[i * batch_size:(i + 1) * batch_size] = v.copy()
+            v = self.metropolis_step(v, mask_updates=mask_updates, seed=seed)
+            sample_v[i * batch_size : (i + 1) * batch_size] = v.copy()
 
         return sample_v
 

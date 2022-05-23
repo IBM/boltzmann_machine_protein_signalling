@@ -8,6 +8,7 @@ setup(
         'numpy==1.22.3',
         'scipy==1.8.0',
         'numpy_ml==0.1.2'
+        'tqdm==4.64.0'
     ],
     version='0.1',
     description='Boltzmann machines for Protein Signalling',
