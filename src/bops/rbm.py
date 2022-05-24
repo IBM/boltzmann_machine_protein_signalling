@@ -37,7 +37,7 @@ class RestrictedBoltzmannMachine:
     """
 
     def __init__(
-        self, n_visible, n_hidden, seed=123, optimizer="Adam", optimzer_params=tuple()
+        self, n_visible, n_hidden, seed=None, optimizer="Adam", optimizer_params=tuple()
     ):
         self.n_visible = n_visible
         self.n_hidden = n_hidden
@@ -46,7 +46,7 @@ class RestrictedBoltzmannMachine:
         self.b = np.zeros((n_hidden,))
         self.rng = np.random.default_rng(seed=seed)
         self.optim = self.get_optimizer(
-            optimizer=optimizer, optimizer_params=optimzer_params
+            optimizer=optimizer, optimizer_params=optimizer_params
         )
 
     def xavier_initialize_w(self, seed=None):
@@ -150,8 +150,8 @@ class RestrictedBoltzmannMachine:
         v_new = self.sample_v(h, seed)
         if mask_updates is not None:
             assert mask_updates.shape == v.shape[-1:]
-            v = mask_updates * v + (1 - mask_updates) * v_new
-        return v, h
+            v_new = mask_updates * v + (1 - mask_updates) * v_new
+        return v_new, h
 
     def sample_gibbs(
         self,
@@ -207,7 +207,13 @@ class RestrictedBoltzmannMachine:
         return accept * v_new + (1 - accept) * v
 
     def sample_metropolis(
-        self, batch_size=10, n_steps=100, n_burn=10, v_start=None, mask_updates=None, seed=None
+        self,
+        batch_size=10,
+        n_steps=100,
+        n_burn=10,
+        v_start=None,
+        mask_updates=None,
+        seed=None,
     ):
         """Sample using the Metropolis-Hastings algorithm. This does not require sampling the hidden variables
         as we can compute the probability of a visible state using the free energy formula"""
@@ -280,6 +286,41 @@ class RestrictedBoltzmannMachine:
         for v_batch in batched_array(v, batch_size=batch_size):
             self.gradient_step(v_batch)
 
-    def train(self, v, batch_size, n_epochs):
-        for e in tqdm(range(n_epochs)):
+    def eval_cov_l2(self, test_set, predicted_set):
+        """Measure the relative norm of the difference of the covariance matrices between a test set and a predicted sample
+        from the model. The L2 Norm of the difference is normalized by the L2 norm of the test set"""
+        # Covariances are computed between features, not datapoints
+        cov_test = np.corrcoef(test_set.T) - np.eye(test_set.shape[-1])
+        cov_pred = np.corrcoef(predicted_set.T) - np.eye(test_set.shape[-1])
+
+        return np.linalg.norm(cov_pred - cov_test) / np.linalg.norm(cov_test)
+
+    def eval_cov_l2_gibbs(
+        self, test_set, batch_size=10, n_steps=10000, n_burn=1000, seed=None
+    ):
+        predicted_set = self.sample_gibbs(
+            batch_size=batch_size,
+            n_steps=n_steps,
+            n_burn=n_burn,
+            return_hidden=False,
+            seed=seed,
+        )
+
+        return self.eval_cov_l2(test_set=test_set, predicted_set=predicted_set)
+
+    def train(self, v, batch_size, n_epochs, gibbs_params=None):
+        covl2_history = []
+        if gibbs_params is None:
+            gibbs_params = dict()
+        covl2_history.append(self.eval_cov_l2_gibbs(test_set=v, **gibbs_params))
+        progress_bar = tqdm(
+            range(n_epochs), desc=f"Cov L2 Diff: {covl2_history[-1]:.2e}"
+        )
+        for e in progress_bar:
+            self.rng.shuffle(v, axis=0)
             self.train_epoch(v, batch_size)
+            covl2_history.append(self.eval_cov_l2_gibbs(test_set=v, **gibbs_params))
+            progress_bar.set_description(
+                desc=f"Cov L2 Diff: {covl2_history[-1]:.2e}", refresh=True
+            )
+        return covl2_history
