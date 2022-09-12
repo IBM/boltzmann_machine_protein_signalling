@@ -16,5 +16,6 @@ setup(
     long_description_content_type="text/markdown",
     author='Nicolas Deutschmann',
     author_email="nicolas.deutschmann@gmail.com",
-    include_package_data=True
+    include_package_data=True,
+    license='MIT'
 )
