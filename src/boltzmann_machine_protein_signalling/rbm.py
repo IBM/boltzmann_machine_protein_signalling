@@ -30,7 +30,8 @@ def batched_outer(a, b):
 
 
 class RestrictedBoltzmannMachine:
-    """Energy based model with a bipartite interaction graph over binary visible (v) and hidden (h) nodes.
+    """Energy based model with a bipartite interaction graph over binary visible (v)
+    and hidden (h) nodes.
     The energy function is defined as
     E(v,h) = - a.v - b.h - v.w.h
     where a,b and w are trainable parameters.
@@ -79,7 +80,8 @@ class RestrictedBoltzmannMachine:
         return optim_cls(**optimizer_params)
 
     def get_rng(self, seed=None):
-        """Either use the rng setup at instantiation or obtain a new one with a fixed seed"""
+        """Either use the rng setup at instantiation or
+        obtain a new one with a fixed seed"""
         if seed is None:
             return self.rng
         else:
@@ -90,7 +92,8 @@ class RestrictedBoltzmannMachine:
         self.rng = self.get_rng(seed)
 
     def prob_h(self, v: np.ndarray):
-        """Compute the probability of all hidden nodes being equal to 1 given all the visible nodes"""
+        """Compute the probability of all hidden nodes
+        being equal to 1 given all the visible nodes"""
         return sigmoid(
             np.tensordot(
                 v, self.w, axes=[[-1], [0]]
@@ -99,7 +102,8 @@ class RestrictedBoltzmannMachine:
         )
 
     def prob_v(self, h: np.ndarray):
-        """Compute the probability of all visible nodes being equal to 1 given all the hidden nodes"""
+        """Compute the probability of all visible nodes
+        being equal to 1 given all the hidden nodes"""
         return sigmoid(
             np.tensordot(
                 h, self.w, axes=[[-1], [1]]
@@ -118,8 +122,9 @@ class RestrictedBoltzmannMachine:
         )
 
     def boltzmann_factor(self, v: np.ndarray):
-        """Compute the Boltzmann factor (un-normalized probability) for a batch of visible states.
-        The Boltzmann factor is exp(-F(v)) where F is the free energy of the visible state v
+        """Compute the Boltzmann factor (un-normalized probability) for a batch of
+        visible states. The Boltzmann factor is exp(-F(v))
+        where F is the free energy of the visible state v
         """
         return np.exp(-self.conditional_free_energy(v))
 
@@ -163,8 +168,8 @@ class RestrictedBoltzmannMachine:
         mask_updates=None,
         seed=None,
     ):
-        """Sample using the Gibbs algorithm: start from a random configuration of visible variables and alternatively
-        sample h and v from each other.
+        """Sample using the Gibbs algorithm: start from a random configuration of
+        visible variables and alternatively sample h and v from each other.
 
         All operations are performed batch-wise and the total number of samples will be
         (batch_size * n_steps) to allow for vectorization
@@ -173,7 +178,8 @@ class RestrictedBoltzmannMachine:
             batch_size=batch_size, v_start=v_start, seed=seed
         )
 
-        # Creating arrays for the results. They are filled with nans to easily diagnose issues
+        # Creating arrays for the results.
+        # They are filled with nans to easily diagnose issues
         sample_v = np.empty((n_steps * batch_size, self.n_visible))
         sample_v.fill(np.nan)
         if return_hidden:
@@ -215,8 +221,9 @@ class RestrictedBoltzmannMachine:
         mask_updates=None,
         seed=None,
     ):
-        """Sample using the Metropolis-Hastings algorithm. This does not require sampling the hidden variables
-        as we can compute the probability of a visible state using the free energy formula"""
+        """Sample using the Metropolis-Hastings algorithm. This does not require
+        sampling the hidden variables as we can compute the probability of a
+        visible state using the free energy formula"""
         v, batch_size = self.sample_initial_batch(
             batch_size=batch_size, v_start=v_start, seed=seed
         )
@@ -254,14 +261,16 @@ class RestrictedBoltzmannMachine:
         return np.sum(batched_outer(v_prime, h) - batched_outer(v, h), axis=0)
 
     def compute_gradient_a(self, v, seed=None):
-        """Compute the gradient of the visible linear term using contrastive divergence"""
+        """Compute the gradient of the visible linear term
+        using contrastive divergence"""
         h = self.sample_h(v, seed)
         v_prime = self.sample_v(h, seed=seed)
 
         return np.sum(v_prime - v, axis=0)
 
     def compute_gradient_b(self, v, seed=None):
-        """Compute the gradient of the hidden linear term using contrastive divergence"""
+        """Compute the gradient of the hidden linear term
+        using contrastive divergence"""
         prob_h_data = self.prob_h(v)
 
         h = self.sample_h(v, seed)
@@ -281,14 +290,16 @@ class RestrictedBoltzmannMachine:
         self.b = self.optim.update(self.b, gradient_b, "b")
 
     def train_epoch(self, v, batch_size, seed=None):
-        """Train by going once over a batch of visible variables, dividing it into minibatches"""
+        """Train by going once over a batch of visible variables,
+        dividing it into minibatches"""
         self.get_rng(seed).shuffle(v, axis=0)
         for v_batch in batched_array(v, batch_size=batch_size):
             self.gradient_step(v_batch)
 
     def eval_cov_l2(self, test_set, predicted_set):
-        """Measure the relative norm of the difference of the covariance matrices between a test set and a predicted sample
-        from the model. The L2 Norm of the difference is normalized by the L2 norm of the test set"""
+        """Measure the relative norm of the difference of the covariance matrices
+        between a test set and a predicted sample from the model. The L2 Norm of the
+        difference is normalized by the L2 norm of the test set"""
         # Covariances are computed between features, not datapoints
         cov_test = np.corrcoef(test_set.T) - np.eye(test_set.shape[-1])
         cov_pred = np.corrcoef(predicted_set.T) - np.eye(test_set.shape[-1])
