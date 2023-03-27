@@ -1,7 +1,7 @@
 from setuptools import find_packages, setup
 
 setup(
-    name='bops',
+    name='boltzmann_machine_protein_signalling',
     packages=find_packages(where='src'),
     package_dir={'': 'src'},
     install_requires=[
